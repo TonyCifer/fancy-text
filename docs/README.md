@@ -201,30 +201,6 @@ local length = FancyText.GetTextLengthWithoutTags("Hello <shake>World<shake>!")
 -- Returns: 12
 ```
 
-## Tag Syntax
-
-Toggle effects on/off using angle brackets:
-
-```lua
-"Normal <effect>affected text</effect> normal again"
-```
-
-**Examples:**
-
-```lua
--- Single effect
-"<rainbow>Rainbow text!<rainbow>"
-
--- Multiple effects
-"<shake><rainbow>Shaky rainbow!<rainbow><shake>"
-
--- Effect with parameters
-"<col 255 0 0>Red text<col>"
-
--- Toggle effect on and off
-"Normal <shake>shaky<shake> normal <shake>shaky again<shake>"
-```
-
 ## License
 
 This project is open source and available for use in your Roblox projects.
