@@ -1,6 +1,6 @@
 # FancyText
 
-A powerful and flexible text rendering module for Roblox that supports custom fonts, text effects, inline icons, and rich formatting through BBCode-style tags. Perfect for creating dynamic UI text with animations, colors, and special effects.
+A powerful and flexible text rendering module for Roblox that supports custom fonts, text effects, inline icons, and rich formatting through tags. Perfect for creating dynamic UI text with animations, colors, and special effects.
 
 ## Features
 
