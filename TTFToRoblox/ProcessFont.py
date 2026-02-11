@@ -19,8 +19,8 @@ useUnicode=1
 disableBoxChars=1
 outputInvalidCharGlyph=0
 dontIncludeKerningPairs=1
-useHinting=0
-renderFromOutline=1
+useHinting=1
+renderFromOutline=0
 useClearType=1
 autoFitNumPages=0
 autoFitFontSizeMin=0
@@ -36,8 +36,8 @@ useFixedHeight=0
 forceZero=0
 widthPaddingFactor=0.00
 # output file
-outWidth=2048
-outHeight=2048
+outWidth=1024
+outHeight=1024
 outBitDepth=32
 fontDescFormat=0
 fourChnlPacked=0
@@ -54,7 +54,7 @@ invB=0
 # outline
 outlineThickness=0
 # selected chars
-chars=32-37,39-126
+chars=32-126
 # imported icon images
 """
 
@@ -79,19 +79,9 @@ def get_font_name(ttf_path):
 
 def parse_fnt(path, font_size=64):
     chars = {}
-    base_line = None
 
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
-            if line.startswith("common "):
-                data = {}
-                for kv in line.split():
-                    if "=" in kv:
-                        k, v = kv.split("=", 1)
-                        data[k] = v
-                if "base" in data:
-                    base_line = int(data["base"])
-
             if line.startswith("char id="):
                 data = {}
                 for kv in line.split():
@@ -99,10 +89,6 @@ def parse_fnt(path, font_size=64):
                         k, v = kv.split("=", 1)
                         data[k] = v
                 char_id = int(data["id"])
-                yoffset = int(data["yoffset"])
-
-                if base_line is not None:
-                    yoffset = yoffset - base_line
 
                 chars[char_id] = {
                     "x": int(data["x"]),
@@ -110,7 +96,7 @@ def parse_fnt(path, font_size=64):
                     "width": int(data["width"]),
                     "height": int(data["height"]),
                     "xoffset": int(data["xoffset"]),
-                    "yoffset": yoffset,
+                    "yoffset": int(data["yoffset"]),
                     "xadvance": int(data["xadvance"]),
                 }
     return chars
@@ -123,10 +109,10 @@ def write_lua(path, atlas_id, original_size, chars):
         f.write("\tCharacters = {\n")
         for cid, c in sorted(chars.items()):
             f.write(
-                f"\t\t[{cid}]={{x={c['x']},y={c['y']},width={c['width']},height={c['height']},"
-                f"xoffset={c['xoffset']},yoffset={c['yoffset']},xadvance={c['xadvance']}}},\n"
+                f"\t\t[{cid}] = {{ x = {c['x']}, y = {c['y']}, width = {c['width']}, height = {c['height']}, "
+                f"xoffset = {c['xoffset']}, yoffset = {c['yoffset']}, xadvance = {c['xadvance']} }},\n"
             )
-        f.write("\t}\n")
+        f.write("\t},\n")
         f.write("}\n")
 
 def get_bmfont_path():
@@ -172,7 +158,6 @@ def build_font(ttf_path):
         "-c", cfg_path,
         "-o", name
     ], 
-
     stdout=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,
     creationflags=subprocess.CREATE_NO_WINDOW)
