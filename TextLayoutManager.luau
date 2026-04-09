@@ -12,6 +12,7 @@ function TextLayoutManager.new(chars, container, is_custom: boolean, ui_scale: n
 	self._is_custom = is_custom
 	self._current_line = {}
 	self._ui_scale = ui_scale or 1
+	self._total_height = 0
 
 	return self
 end
@@ -75,6 +76,9 @@ function TextLayoutManager:Init(flush_callback)
 	end
 
 	self:_Flush()
+
+	-- return total height for vertical alignment calculations
+	return self._total_height
 end
 
 function TextLayoutManager:_IsStartOfWord(i): boolean
@@ -124,6 +128,7 @@ function TextLayoutManager:_Flush()
 	self._callback(self._current_line, self._line_width, self._line_height)
 
 	self._line_height += self._line_height_increment
+	self._total_height = self._line_height
 
 	self._current_line = {}
 	self._line_width = 0

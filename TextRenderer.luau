@@ -53,7 +53,13 @@ end
 function TextRenderer:Render()
 	-- wait for container to have valid size if using alignment
 	self._trove:Add(task.spawn(function()
-		if self._config.TextAlign and (self._config.TextAlign == "Center" or self._config.TextAlign == "Right") then
+		if
+			(self._config.TextAlign and (self._config.TextAlign == "Center" or self._config.TextAlign == "Right"))
+			or (
+				self._config.VerticalAlign
+				and (self._config.VerticalAlign == "Center" or self._config.VerticalAlign == "Bottom")
+			)
+		then
 			while self._container.AbsoluteSize.X == 0 and self._container.AbsoluteSize.Y == 0 do
 				task.wait()
 			end
@@ -63,9 +69,38 @@ function TextRenderer:Render()
 		local layout_mgr =
 			TextLayoutManager.new(self._characters, self._container, self._config.CustomFont ~= nil, ui_scale)
 
-		layout_mgr:Init(function(...)
+		local total_height = layout_mgr:Init(function(...)
 			self:_FlushLine(...)
 		end)
+
+		-- Calculate and apply vertical offset
+		local vertical_offset = 0
+		if self._config.VerticalAlign == "Center" then
+			local container_height = self._config.Scale and (self._container.AbsoluteSize.Y / ui_scale)
+				or self._container.AbsoluteSize.Y
+			vertical_offset = math.max(0, (container_height - total_height) / 2)
+		elseif self._config.VerticalAlign == "Bottom" then
+			local container_height = self._config.Scale and (self._container.AbsoluteSize.Y / ui_scale)
+				or self._container.AbsoluteSize.Y
+			vertical_offset = math.max(0, container_height - total_height)
+		end
+
+		-- Apply vertical offset and update OrigPos for effects
+		if vertical_offset > 0 then
+			for _, char_obj in self._characters do
+				local instance = char_obj:GetInstance()
+				if instance then
+					local current_pos = instance.Position
+					instance.Position = current_pos + UDim2.fromOffset(0, vertical_offset)
+
+					-- Update OrigPos attribute so effects use the vertically-aligned position
+					if instance:GetAttribute("OrigPos") then
+						local orig_pos = instance:GetAttribute("OrigPos")
+						instance:SetAttribute("OrigPos", orig_pos + UDim2.fromOffset(0, vertical_offset))
+					end
+				end
+			end
+		end
 	end))
 end
 
@@ -82,9 +117,9 @@ function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
 			local container_width = self._config.Scale and (self._container.AbsoluteSize.X / Util.GetUIScale())
 				or self._container.AbsoluteSize.X
 
-			line_start_x = math.max(0, (container_width - line_width) / 2)
+			line_start_x = (container_width - line_width) / 2
 		else
-			line_start_x = math.max(0, (self._container.AbsoluteSize.X - line_width) / 2)
+			line_start_x = (self._container.AbsoluteSize.X - line_width) / 2
 		end
 	elseif self._config.TextAlign == "Right" then
 		if self._config.CustomFont then

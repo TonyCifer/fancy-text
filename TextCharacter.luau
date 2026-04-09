@@ -96,6 +96,7 @@ function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
 		self._instance.Name = self._char
 		self._instance.Image = custom.Atlas
 		self._instance.ImageColor3 = text_color
+		self._instance.ZIndex = self._config.ZIndex
 		self._instance.Size = UDim2.fromOffset(size.X, size.Y)
 		self._instance.ImageRectOffset = Vector2.new(custom.X, custom.Y)
 		self._instance.ImageRectSize = Vector2.new(custom.UnscaledWidth, custom.UnscaledHeight)
@@ -109,6 +110,7 @@ function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
 		self._instance.TextSize = self._font_size
 		self._instance.TextColor3 = text_color
 		self._instance.RichText = true
+		self._instance.ZIndex = self._config.ZIndex
 		self._instance.Size = UDim2.fromOffset(size.X, size.Y)
 		self._instance.Position = UDim2.fromOffset(line_start_x + x_pos, line_height)
 		self._instance.TextStrokeTransparency = self._config.TextStrokeTransparency
