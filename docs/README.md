@@ -17,24 +17,22 @@ A powerful and flexible text rendering module for Roblox that supports custom fo
 
 ## Demo
 
+![App Demo](./demo.gif)
+
 ```lua
-local FancyText = require(path.to.FancyText)
+local ft = require(path.to.FancyText)
 
--- Simple text with effects
-local config = {
-    FontSize = 30,
-    TextColor = Color3.fromRGB(255, 255, 255),
-    TextAlign = "Center",
-}
+local text = "<shadow 5 5><wave><type><rainbow>This is FancyText"
+local cleanup_trove = ft.MakeText(container, text, {
+    FontFace = Font.new("rbxassetid://fonts/families/Inconsolata.json"),
+    FontSize = 80,
+    VerticalAlign = "Center"
+})
 
-local trove = FancyText.MakeText(
-    container,
-    "Hello <rainbow>World<rainbow>!",
-    config
-)
-
--- Clean up when done
-trove:Destroy()
+-- cleanup when done..
+task.delay(10, function()
+    cleanup_trove:Clean()
+end)
 ```
 
 ## Built-in Effects
