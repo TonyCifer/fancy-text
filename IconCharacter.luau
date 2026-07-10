@@ -16,15 +16,10 @@ function IconCharacter.new(icon_name: string, config, container: GuiObject)
 	return self
 end
 
-function IconCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
-	if not Config.IconsFolder then
-		warn(`[FancyText/IconCharacter]: IconsFolder not specified in Config. Cannot render icon '{self._icon_name}'`)
-		return
-	end
-
+function IconCharacter:CreateInstance(line_start_x, x_pos, line_height, trove, render_container)
 	local icon = Config.IconsFolder:FindFirstChild(self._icon_name)
 	if not icon then
-		warn(`[FancyText/IconCharacter]: Icon '{self._icon_name}' not found in IconsFolder`)
+		warn(`[FancyText/IconCharacter]: Icon '{self._icon_name}' not found in ReplicatedStorage.Assets.UI.Icons`)
 		return
 	end
 
@@ -35,7 +30,7 @@ function IconCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
 	self._instance.Position = UDim2.fromOffset(line_start_x + x_pos, line_height)
 	self._instance.ImageColor3 = self._config.TextColor or Color3.new(1, 1, 1)
 
-	self._instance.Parent = self._container
+	self._instance.Parent = render_container or self._container
 end
 
 function IconCharacter:GetChar()

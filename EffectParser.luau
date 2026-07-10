@@ -92,4 +92,3 @@ function EffectParser:Parse()
 end
 
 return EffectParser
-

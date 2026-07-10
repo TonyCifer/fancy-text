@@ -30,15 +30,15 @@ type TroveInternal = Trove & {
 ]=]
 export type Trackable =
 	Instance
-| RBXScriptConnection
-| ConnectionLike
-| PromiseLike
-| thread
-| ((...any) -> ...any)
-| Destroyable
-| DestroyableLowercase
-| Disconnectable
-| DisconnectableLowercase
+	| RBXScriptConnection
+	| ConnectionLike
+	| PromiseLike
+	| thread
+	| ((...any) -> ...any)
+	| Destroyable
+	| DestroyableLowercase
+	| Disconnectable
+	| DisconnectableLowercase
 
 --[=[
 	@within Trove

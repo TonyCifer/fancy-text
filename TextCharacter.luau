@@ -85,10 +85,11 @@ function TextCharacter:_Init()
 	end
 end
 
-function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
+function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove, render_container)
 	local custom = self:GetCustomFontData()
 	local size = self:GetSize()
 	local text_color = self._config.TextColor
+	local parent = render_container or self._container
 
 	if custom then
 		self._instance = trove:Add(Instance.new("ImageLabel"))
@@ -101,7 +102,7 @@ function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
 		self._instance.ImageRectOffset = Vector2.new(custom.X, custom.Y)
 		self._instance.ImageRectSize = Vector2.new(custom.UnscaledWidth, custom.UnscaledHeight)
 		self._instance.Position = UDim2.fromOffset(line_start_x + x_pos + custom.XOffset, line_height + custom.YOffset)
-		self._instance.Parent = self._container
+		self._instance.Parent = parent
 	else
 		self._instance = trove:Add(Instance.new("TextLabel"))
 		self._instance.BackgroundTransparency = 1
@@ -130,7 +131,7 @@ function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove)
 			constraint.Parent = self._instance
 		end
 
-		self._instance.Parent = self._container
+		self._instance.Parent = parent
 	end
 end
 

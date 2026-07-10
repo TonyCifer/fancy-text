@@ -4,6 +4,8 @@ local IconCharacter = require(script.Parent.IconCharacter)
 local EffectParser = require(script.Parent.EffectParser)
 local Util = require(script.Parent.Dependencies.Util)
 
+local RESIZE_DEBOUNCE_TIME = 0.2 -- seconds to wait after the last resize before re-laying out
+
 local TextRenderer = {}
 TextRenderer.__index = TextRenderer
 
@@ -14,6 +16,11 @@ function TextRenderer.new(container, config, text, trove)
 	self._config = config
 	self._text = text
 	self._trove = trove
+
+	-- Everything created by a layout pass (character instances, effect Init state)
+	-- lives in its own sub-trove so a resize can Clean() and rebuild it without
+	-- touching the structural stuff (UIScale, resize connections) in self._trove.
+	self._render_trove = trove:Extend()
 
 	self._characters = {}
 	self._effect_args = {}
@@ -30,9 +37,17 @@ function TextRenderer:_Init()
 	end
 
 	if self._config.Scale then
+		local inner = self._trove:Add(Instance.new("Frame"))
+		inner.Size = UDim2.fromScale(1, 1)
+		inner.BackgroundTransparency = 1
+		inner.Parent = self._container
+
 		local scale = self._trove:Add(Instance.new("UIScale"))
 		scale.Scale = Util.GetUIScale()
-		scale.Parent = self._container
+		scale.Parent = inner
+
+		self._render_container = inner
+		self._ui_scale = scale
 	end
 
 	local parser = EffectParser.new(self._characters)
@@ -65,43 +80,124 @@ function TextRenderer:Render()
 			end
 		end
 
-		local ui_scale = self._config.Scale and Util.GetUIScale() or 1
-		local layout_mgr =
-			TextLayoutManager.new(self._characters, self._container, self._config.CustomFont ~= nil, ui_scale)
+		self:_Layout()
+		self:_ListenForResize()
+	end))
+end
 
-		local total_height = layout_mgr:Init(function(...)
-			self:_FlushLine(...)
-		end)
+-- Lays out (or re-lays-out) all characters: recomputes the UIScale factor, re-wraps
+-- lines against the container's current size, and repositions/recreates character
+-- instances. Safe to call multiple times - each call cleans up the previous pass's
+-- instances and effect state via self._render_trove before rebuilding.
+function TextRenderer:_Layout()
+	local ui_scale = self._config.Scale and Util.GetUIScale() or 1
+	local container_size = self._container.AbsoluteSize
 
-		-- Calculate and apply vertical offset
-		local vertical_offset = 0
-		if self._config.VerticalAlign == "Center" then
-			local container_height = self._config.Scale and (self._container.AbsoluteSize.Y / ui_scale)
-				or self._container.AbsoluteSize.Y
-			vertical_offset = math.max(0, (container_height - total_height) / 2)
-		elseif self._config.VerticalAlign == "Bottom" then
-			local container_height = self._config.Scale and (self._container.AbsoluteSize.Y / ui_scale)
-				or self._container.AbsoluteSize.Y
-			vertical_offset = math.max(0, container_height - total_height)
-		end
+	-- Recreating instances below can itself change the container's AbsoluteSize
+	-- (e.g. if it has AutomaticSize enabled), which would re-fire the resize
+	-- listener that called us. Skip the reflow if nothing actually changed since
+	-- the last layout so that settles into a no-op instead of looping forever.
+	if self._last_layout_size == container_size and self._last_layout_scale == ui_scale then
+		return
+	end
+	self._last_layout_size = container_size
+	self._last_layout_scale = ui_scale
 
-		-- Apply vertical offset and update OrigPos for effects
-		if vertical_offset > 0 then
-			for _, char_obj in self._characters do
-				local instance = char_obj:GetInstance()
-				if instance then
-					local current_pos = instance.Position
-					instance.Position = current_pos + UDim2.fromOffset(0, vertical_offset)
+	self._render_trove:Clean()
+	self._effect_args = {}
+	self._global_char_index = 0
 
-					-- Update OrigPos attribute so effects use the vertically-aligned position
-					if instance:GetAttribute("OrigPos") then
-						local orig_pos = instance:GetAttribute("OrigPos")
-						instance:SetAttribute("OrigPos", orig_pos + UDim2.fromOffset(0, vertical_offset))
-					end
+	if self._ui_scale then
+		self._ui_scale.Scale = ui_scale
+	end
+
+	local layout_mgr =
+		TextLayoutManager.new(self._characters, self._container, self._config.CustomFont ~= nil, ui_scale)
+
+	local total_height = layout_mgr:Init(function(...)
+		self:_FlushLine(...)
+	end)
+
+	-- Calculate and apply vertical offset
+	local vertical_offset = 0
+	if self._config.VerticalAlign == "Center" then
+		local container_height = self._config.Scale and (self._container.AbsoluteSize.Y / ui_scale)
+			or self._container.AbsoluteSize.Y
+		vertical_offset = math.max(0, (container_height - total_height) / 2)
+	elseif self._config.VerticalAlign == "Bottom" then
+		local container_height = self._config.Scale and (self._container.AbsoluteSize.Y / ui_scale)
+			or self._container.AbsoluteSize.Y
+		vertical_offset = math.max(0, container_height - total_height)
+	end
+
+	-- Apply vertical offset and update OrigPos for effects
+	if vertical_offset > 0 then
+		for _, char_obj in self._characters do
+			local instance = char_obj:GetInstance()
+			if instance then
+				local current_pos = instance.Position
+				instance.Position = current_pos + UDim2.fromOffset(0, vertical_offset)
+
+				-- Update OrigPos attribute so effects use the vertically-aligned position
+				if instance:GetAttribute("OrigPos") then
+					local orig_pos = instance:GetAttribute("OrigPos")
+					instance:SetAttribute("OrigPos", orig_pos + UDim2.fromOffset(0, vertical_offset))
 				end
 			end
 		end
-	end))
+	end
+end
+
+-- Re-runs _Layout() whenever the viewport changes (window resize, device rotation,
+-- split-screen, etc.), debounced so a burst of resize events only triggers one
+-- reflow after things settle. Deliberately does NOT listen to the container's own
+-- AbsoluteSize - recreating instances can itself change a container's AbsoluteSize
+-- (e.g. if it has AutomaticSize enabled), which turned into a self-triggering loop.
+-- ViewportSize only changes for genuine external reasons (resize/rotate/etc.), so
+-- it can't be fed back into by our own writes.
+function TextRenderer:_ListenForResize()
+	local reflow_pending = false
+	local alive = true
+
+	self._trove:Add(function()
+		alive = false
+	end)
+
+	local function request_reflow()
+		if reflow_pending then
+			return
+		end
+		reflow_pending = true
+
+		task.delay(RESIZE_DEBOUNCE_TIME, function()
+			reflow_pending = false
+			if alive then
+				self:_Layout()
+			end
+		end)
+	end
+
+	-- workspace.CurrentCamera can be swapped out (e.g. by camera scripts), so
+	-- re-hook ViewportSize whenever that happens rather than assuming it's stable.
+	local camera_conn = nil
+	local function hook_camera()
+		if camera_conn then
+			camera_conn:Disconnect()
+		end
+
+		local cam = workspace.CurrentCamera
+		if cam then
+			camera_conn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(request_reflow)
+		end
+	end
+
+	hook_camera()
+	self._trove:Add(function()
+		if camera_conn then
+			camera_conn:Disconnect()
+		end
+	end)
+	self._trove:Connect(workspace:GetPropertyChangedSignal("CurrentCamera"), hook_camera)
 end
 
 function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
@@ -112,31 +208,20 @@ function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
 	-- left alignment uses 0 (default)
 	local line_start_x = 0
 
+	local container_width = self._config.Scale and (self._container.AbsoluteSize.X / Util.GetUIScale())
+		or self._container.AbsoluteSize.X
+
 	if self._config.TextAlign == "Center" then
-		if self._config.CustomFont then
-			local container_width = self._config.Scale and (self._container.AbsoluteSize.X / Util.GetUIScale())
-				or self._container.AbsoluteSize.X
-
-			line_start_x = (container_width - line_width) / 2
-		else
-			line_start_x = (self._container.AbsoluteSize.X - line_width) / 2
-		end
+		line_start_x = (container_width - line_width) / 2
 	elseif self._config.TextAlign == "Right" then
-		if self._config.CustomFont then
-			local container_width = self._config.Scale and (self._container.AbsoluteSize.X / Util.GetUIScale())
-				or self._container.AbsoluteSize.X
-
-			line_start_x = math.max(0, container_width - line_width)
-		else
-			line_start_x = math.max(0, self._container.AbsoluteSize.X - line_width)
-		end
+		line_start_x = math.max(0, container_width - line_width)
 	end
 
 	for i, char_line_data in chars_to_render do
 		local char_obj = char_line_data.CharObj
 		local x_pos = char_line_data.XPos
 
-		char_obj:CreateInstance(line_start_x, x_pos, line_height, self._trove)
+		char_obj:CreateInstance(line_start_x, x_pos, line_height, self._render_trove, self._render_container)
 
 		self._global_char_index += 1
 
@@ -155,7 +240,7 @@ function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
 				local params = char_obj:GetEffectParams(effect_name)
 
 				self._effect_args[effect_name][char_inst] =
-					effect_module.Init(char_inst, self._global_char_index, self._trove, params)
+					effect_module.Init(char_inst, self._global_char_index, self._render_trove, params)
 			end
 		end
 	end
@@ -165,8 +250,8 @@ function TextRenderer:Update(dt)
 	for i, char_obj in self._characters do
 		local instance = char_obj:GetInstance()
 
-		-- if up to 3 parent's up are visible, continue
-		if not instance or not Util.GuiObjectIsVisible(instance, 3) then
+		-- if up to 10 parent's up are not visible, continue
+		if not instance or not Util.GuiObjectIsVisible(instance, 10) then
 			continue
 		end
 
@@ -182,7 +267,14 @@ function TextRenderer:Update(dt)
 
 			if effect_module.Update then
 				local params = char_obj:GetEffectParams(effect_name)
-				effect_module.Update(instance, i, dt, self._trove, self._effect_args[effect_name][instance], params)
+				effect_module.Update(
+					instance,
+					i,
+					dt,
+					self._render_trove,
+					self._effect_args[effect_name][instance],
+					params
+				)
 			end
 		end
 	end
