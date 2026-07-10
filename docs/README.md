@@ -13,6 +13,7 @@ A powerful and flexible text rendering module for Roblox that supports custom fo
 - [x] **Word Wrapping** - Intelligent word wrapping with custom fonts
 - [x] **BBCode Tags** - Toggle effects on/off with `<effect>` tags
 - [x] **Extensible** - Easy to create custom effects
+- [x] **TextLabel Replacement** - Swap a design-time TextLabel for FancyText at runtime
 - [ ] Improved performance optimizations
 
 ## Demo
@@ -61,6 +62,27 @@ local trove = FancyText.MakeText(
     "Collect <icon Coin> coins!",
     config
 )
+```
+
+## Replacing a TextLabel
+
+Design your UI with a normal `TextLabel` in Studio so you can see it while building, then swap it for FancyText at runtime with `FromLabel`. It copies over whatever properties `TextLabel` and `Config` have in common (alignment, font, size, color, ZIndex, etc.), renders the label's current `Text`, and hides the label's native text:
+
+```lua
+local trove = FancyText.FromLabel(textLabel)
+
+-- restores the TextLabel's original text and cleans up FancyText when done..
+task.delay(10, function()
+    trove:Clean()
+end)
+```
+
+Overrides win over anything copied from the `TextLabel`, and a prefix can be supplied to prepend tags (e.g. effects) onto the label's text without editing it in Studio:
+
+```lua
+local trove = FancyText.FromLabel(textLabel, {
+    VerticalAlign = "Center"
+}, "<shadow 5 5><wave>")
 ```
 
 ## Importing Custom Fonts with TTFToRoblox
@@ -172,6 +194,28 @@ Creates and renders text with effects in the specified container.
 **Returns:**
 
 - `Trove` - Trove object for cleanup (call `:Destroy()` when done)
+
+### FancyText.FromLabel
+
+```lua
+FancyText.FromLabel(
+    text_label: TextLabel,
+    configs: Config?,
+    prefix: string?
+) -> Trove
+```
+
+Replaces a `TextLabel`'s rendered text with FancyText, copying over shared properties (alignment, font, size, color, ZIndex, etc.) and hiding the label's native text.
+
+**Parameters:**
+
+- `text_label` - TextLabel to copy properties/text from and render into
+- `configs` - Configuration table (optional, overrides any properties copied from `text_label`)
+- `prefix` - String prepended to the label's text before rendering, e.g. `"<shadow>"` (optional)
+
+**Returns:**
+
+- `Trove` - Trove object for cleanup (call `:Destroy()` when done); also restores the TextLabel's original text and properties
 
 ### FancyText.GetTextWithoutTags
 

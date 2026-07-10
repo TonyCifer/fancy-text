@@ -5,6 +5,7 @@ local FRAME_THROTTLE_AMT = 8
 local Util = require(script.Dependencies.Util)
 local Trove = require(script.Dependencies.Trove)
 local TextRenderer = require(script.TextRenderer)
+local FromLabel = require(script.FromLabel)
 
 local Config = require(script.Config)
 export type Config = Config.Config
@@ -84,6 +85,10 @@ function FancyText.MakeText(container: GuiObject, text: string, config: Config?)
 	end)
 
 	return trove
+end
+
+function FancyText.FromLabel(text_label: TextLabel, configs: Config?, prefix: string?): Trove.Trove
+	return FromLabel(FancyText.MakeText, text_label, configs, prefix)
 end
 
 function FancyText.GetTextLengthWithoutTags(msg: string): number
