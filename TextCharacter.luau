@@ -31,6 +31,11 @@ local function get_custom_char_data(char: string, font_size: number, custom_font
 		error(`[FancyText]: FontData for {custom_font} doesn't have an Atlas.`)
 	end
 
+	-- font_data.YOffset is an optional, manually-tuned per-font correction (defaults to 0, i.e.
+	-- unchanged behavior). Add `YOffset = <number>` to a font's Fonts/*.luau module to nudge
+	-- that font's vertical alignment - positive shifts glyphs down, negative shifts them up -
+	-- instead of FancyText trying to auto-derive "correct" metrics from the atlas's per-glyph
+	-- data (which behaves inconsistently depending on which characters a given string uses).
 	return {
 		Atlas = font_data.Atlas,
 		UnscaledWidth = char_data.width,
@@ -39,7 +44,7 @@ local function get_custom_char_data(char: string, font_size: number, custom_font
 		Height = char_data.height * scale,
 		XAdvance = char_data.xadvance * scale,
 		XOffset = char_data.xoffset * scale,
-		YOffset = char_data.yoffset * scale,
+		YOffset = (char_data.yoffset + (font_data.YOffset or 0)) * scale,
 		X = char_data.x,
 		Y = char_data.y,
 	}
@@ -59,16 +64,23 @@ function TextCharacter.new(char: string, config, container: GuiObject)
 	self._container = container
 	self._instance = nil
 
-	if config.CustomFont then
-		self._custom_font_data = get_custom_char_data(char, config.FontSize, config.CustomFont)
-	end
-
-	self:_Init()
+	self._size = Vector2.new(0, 0)
 
 	return self
 end
 
-function TextCharacter:_Init()
+-- Resolves size/custom font data for this character. Deferred until after tag/effect
+-- parsing (EffectParser:Parse) rather than done eagerly in .new(), because .new() is
+-- called for every raw character in the source text, including characters that only
+-- ever exist inside <tag> syntax (e.g. '<', '>', tag names/params). Those characters
+-- are discarded by the parser and never rendered, so they must not require font data
+-- to exist for them - resolving lazily here means only characters that survive
+-- parsing (i.e. are actually going to be rendered) need valid font data.
+function TextCharacter:Resolve()
+	if self._config.CustomFont then
+		self._custom_font_data = get_custom_char_data(self._char, self._font_size, self._config.CustomFont)
+	end
+
 	-- newlines and other control characters have zero size
 	if self._char == "\n" or self._char == "\r" or self._char == "\t" then
 		self._size = Vector2.new(0, 0)

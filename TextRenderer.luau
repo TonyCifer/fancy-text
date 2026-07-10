@@ -59,10 +59,20 @@ function TextRenderer:_Init()
 		end
 
 		local icon_name = args[1]
-		return { IconCharacter.new(icon_name, self._config, self._container) }
+		local y_offset = tonumber(args[2])
+		return { IconCharacter.new(icon_name, self._config, self._container, y_offset) }
 	end)
 
 	parser:Parse()
+
+	-- Only resolve font data/sizing for characters that survived parsing (i.e. are
+	-- actually going to be rendered) - see TextCharacter:Resolve for why this can't
+	-- happen eagerly in TextCharacter.new.
+	for _, char_obj in self._characters do
+		if char_obj.Resolve then
+			char_obj:Resolve()
+		end
+	end
 end
 
 function TextRenderer:Render()
@@ -242,6 +252,58 @@ function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
 				self._effect_args[effect_name][char_inst] =
 					effect_module.Init(char_inst, self._global_char_index, self._render_trove, params)
 			end
+		end
+	end
+end
+
+-- Manually triggers an effect on all currently rendered characters right now, instead of
+-- waiting on a tag-driven delay - e.g. call this from a button's click handler to start an
+-- exit transition on demand. Runs the effect's Init immediately and registers it on each
+-- character so the normal Update loop above carries the tween forward from here.
+--
+-- If auto_clean is true and the effect's Init returns numeric `delay`/`duration` fields
+-- (as fall/fade already do), the whole trove (the same one MakeText/FromLabel returned)
+-- is automatically cleaned once every character's transition should be finished.
+function TextRenderer:PlayEffect(effect_name: string, params: { string }?, auto_clean: boolean?)
+	local effect_module = Util.GetEffectModule(effect_name)
+	if not effect_module then
+		warn(`[FancyText]: Can't find effect module: {effect_name}`)
+		return
+	end
+
+	if not self._effect_args[effect_name] then
+		self._effect_args[effect_name] = {}
+	end
+
+	local max_end_time = 0
+	local has_estimate = false
+
+	for i, char_obj in self._characters do
+		local char_inst = char_obj:GetInstance()
+		if not char_inst then
+			continue
+		end
+
+		char_obj:AddEffect(effect_name, params or {})
+
+		if effect_module.Init then
+			local data = effect_module.Init(char_inst, i, self._render_trove, params or {})
+			self._effect_args[effect_name][char_inst] = data
+
+			if type(data) == "table" and type(data.delay) == "number" and type(data.duration) == "number" then
+				has_estimate = true
+				max_end_time = math.max(max_end_time, data.delay + data.duration)
+			end
+		end
+	end
+
+	if auto_clean then
+		if has_estimate then
+			task.delay(max_end_time, function()
+				self._trove:Clean()
+			end)
+		else
+			warn(`[FancyText]: Can't auto-clean - effect '{effect_name}' doesn't report delay/duration`)
 		end
 	end
 end

@@ -14,6 +14,7 @@ A powerful and flexible text rendering module for Roblox that supports custom fo
 - [x] **BBCode Tags** - Toggle effects on/off with `<effect>` tags
 - [x] **Extensible** - Easy to create custom effects
 - [x] **TextLabel Replacement** - Swap a design-time TextLabel for FancyText at runtime
+- [x] **On-Demand Effects** - Trigger transitions like `fall`/`fade` from any event, not just a tag-driven timer
 - [ ] Improved performance optimizations
 
 ## Demo
@@ -64,6 +65,12 @@ local trove = FancyText.MakeText(
 )
 ```
 
+Icons are always rendered as a square sized to `FontSize`, positioned flush with the top of the line - unlike text characters, they don't have per-glyph baseline data to align themselves with. If an icon looks vertically misaligned next to text (most noticeable with `CustomFont`, since glyphs have their own per-character baseline offset from the font atlas), pass an optional second tag argument to manually nudge it - positive moves the icon down, negative moves it up:
+
+```lua
+"Collect <icon Coin 4> coins!" -- shifts the Coin icon down by 4px to line up with the digits
+```
+
 ## Replacing a TextLabel
 
 Design your UI with a normal `TextLabel` in Studio so you can see it while building, then swap it for FancyText at runtime with `FromLabel`. It copies over whatever properties `TextLabel` and `Config` have in common (alignment, font, size, color, ZIndex, etc.), renders the label's current `Text`, and hides the label's native text:
@@ -84,6 +91,24 @@ local trove = FancyText.FromLabel(textLabel, {
     VerticalAlign = "Center"
 }, "<shadow 5 5><wave>")
 ```
+
+## Triggering Effects On Demand
+
+Effects like `fall`/`fade` normally start on a fixed delay baked into the tag (e.g. `<fade 2 1>`). To trigger a transition from an event instead - a button click, a timer, anything - call `:PlayEffect` directly on the trove returned by `MakeText`/`FromLabel`, instead of waiting on a tag-driven timer:
+
+```lua
+local trove = FancyText.MakeText(container, "Goodbye!", { FontSize = 40 })
+
+closeButton.MouseButton1Click:Once(function()
+    trove:PlayEffect("fade", {"0", "1"}, true) -- 0s delay, 1s fade, auto-cleans when done
+end)
+```
+
+`:PlayEffect(effectName, params?, autoClean?)` runs the effect's `Init` immediately on every currently-rendered character (instead of waiting on a tag), then lets the normal per-frame update loop carry the tween forward from there. `params` follows the same format as tag arguments (e.g. `{"0", "1"}` for `<fade 0 1>`'s delay/duration).
+
+If `autoClean` is `true` and the effect's `Init` reports numeric `delay`/`duration` fields (as `fall`/`fade` already do), the whole trove is automatically cleaned once every character's transition should be finished - no manual `task.delay`/cleanup bookkeeping needed. Effects that don't report `delay`/`duration` (e.g. `rainbow`, `shake`) still work with `:PlayEffect()`, they just can't be used with `autoClean = true` (a warning is printed if you try).
+
+This works identically on the trove returned by `FromLabel`.
 
 ## Importing Custom Fonts with TTFToRoblox
 
@@ -133,6 +158,21 @@ local config = {
 local trove = FancyText.MakeText(container, "Custom Font Text!", config)
 ```
 
+### Fixing Vertical Alignment
+
+If `VerticalAlign = "Center"` (or `"Bottom"`) doesn't look quite right for a custom font - the atlas's per-character offsets don't carry enough information for FancyText to always get this perfect automatically - add an optional `YOffset` field to that font's `.lua`/`.luau` module and nudge it until it looks right in Studio. Positive shifts the font's text down, negative shifts it up. It defaults to `0` (i.e. no change) if omitted, so this is safe to add to any existing font module:
+
+```lua
+return {
+    Atlas = "rbxassetid://1234567890",
+    OriginalSize = 64,
+    YOffset = -5, -- shift this font's text up by 5 units to fix vertical centering
+    Characters = {
+        -- Character data...
+    }
+}
+```
+
 ## Creating Custom Effects
 
 Effects are modular Lua files in the `Effects/` folder. Each effect can have `Init` and/or `Update` functions:
@@ -170,6 +210,7 @@ return MyEffect
 - Store state in the returned table from `Init`
 - `dt` is delta time in seconds (for frame-rate independent animations)
 - Use `params` to make effects configurable via tags: `<shake 10>` → `params = {"10"}`
+- If your effect is a timed transition (like `fall`/`fade`), return numeric `delay`/`duration` fields from `Init` (see `Effects/fall.luau` or `Effects/fade.luau`) so it can be used with `trove:PlayEffect(name, params, autoClean = true)` - see [Triggering Effects On Demand](#triggering-effects-on-demand). This is optional; effects without these fields still work with `:PlayEffect()`, just not `autoClean`.
 
 ## API Reference
 
@@ -193,7 +234,7 @@ Creates and renders text with effects in the specified container.
 
 **Returns:**
 
-- `Trove` - Trove object for cleanup (call `:Destroy()` when done)
+- `Trove` - Trove object for cleanup (call `:Destroy()` when done). Also exposes `:PlayEffect(effectName, params?, autoClean?)` - see [Triggering Effects On Demand](#triggering-effects-on-demand).
 
 ### FancyText.FromLabel
 
@@ -215,7 +256,7 @@ Replaces a `TextLabel`'s rendered text with FancyText, copying over shared prope
 
 **Returns:**
 
-- `Trove` - Trove object for cleanup (call `:Destroy()` when done); also restores the TextLabel's original text and properties
+- `Trove` - Trove object for cleanup (call `:Destroy()` when done); also restores the TextLabel's original text and properties, and exposes `:PlayEffect(effectName, params?, autoClean?)` - see [Triggering Effects On Demand](#triggering-effects-on-demand).
 
 ### FancyText.GetTextWithoutTags
 
