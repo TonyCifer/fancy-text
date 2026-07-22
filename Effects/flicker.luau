@@ -10,7 +10,7 @@ return {
 		local orig_pos = char_inst:GetAttribute("OrigPos")
 		local base_brightness = char_inst:GetAttribute("BaseBrightness")
 		local flicker_seed = char_inst:GetAttribute("FlickerSeed")
-		local t = tick()
+		local t = time()
 
 		local flicker = math.noise(flicker_seed, t * 2) * 0.4
 		local brightness = math.clamp(base_brightness + flicker, 0, 1)

@@ -2,13 +2,26 @@ local textservice = game:GetService("TextService")
 
 local Config = require(script.Parent.Config)
 
-local function get_custom_char_data(char: string, font_size: number, custom_font: string)
-	local font_data = assert(
-		Config.FontsFolder:FindFirstChild(custom_font),
-		`[FancyText]: Custom Font: {custom_font} doesn't exist or isn't a module.`
-	)
+-- Font modules never change at runtime; cache the resolved require per font name
+-- so we don't do a FindFirstChild + require round-trip for every single glyph.
+local font_data_cache = {}
 
-	font_data = require(font_data)
+-- GetTextSize is pure for a given (char, size, font), and the same glyphs get
+-- measured over and over (every renderer, every character). Shared cache.
+local text_size_cache = {}
+
+local function get_custom_char_data(char: string, font_size: number, custom_font: string)
+	local font_data = font_data_cache[custom_font]
+
+	if not font_data then
+		local font_module = assert(
+			Config.FontsFolder:FindFirstChild(custom_font),
+			`[FancyText]: Custom Font: {custom_font} doesn't exist or isn't a module.`
+		)
+
+		font_data = require(font_module)
+		font_data_cache[custom_font] = font_data
+	end
 
 	local char_code = string.byte(char)
 	local char_data = font_data.Characters[char_code]
@@ -96,7 +109,16 @@ function TextCharacter:Resolve()
 	else
 		-- GetTextSize only accepts Enum.Font, not FontFace
 		local font = self._config.Font or Enum.Font.SourceSans
-		self._size = textservice:GetTextSize(self._char, self._font_size, font, self._container.AbsoluteSize)
+
+		-- Single glyphs never wrap, so the bounds argument doesn't affect the result;
+		-- a fixed large bound makes the measurement cacheable across all renderers.
+		local cache_key = self._char .. "\1" .. font.Name .. "\1" .. self._font_size
+		local cached = text_size_cache[cache_key]
+		if not cached then
+			cached = textservice:GetTextSize(self._char, self._font_size, font, Vector2.new(100000, 100000))
+			text_size_cache[cache_key] = cached
+		end
+		self._size = cached
 	end
 end
 
@@ -125,7 +147,10 @@ function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove, r
 		self._instance.Text = self._char
 		self._instance.TextSize = self._font_size
 		self._instance.TextColor3 = text_color
-		self._instance.RichText = true
+		-- Each label holds exactly one plain character; RichText would run the
+		-- engine's markup parser per label for nothing (tags are handled by
+		-- EffectParser before instances exist).
+		self._instance.RichText = false
 		self._instance.ZIndex = self._config.ZIndex
 		self._instance.Size = UDim2.fromOffset(size.X, size.Y)
 		self._instance.Position = UDim2.fromOffset(line_start_x + x_pos, line_height)

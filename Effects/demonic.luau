@@ -23,8 +23,8 @@ return {
 	end,
 
 	Update = function(char_inst: ImageLabel | TextLabel, index, dt, trove, demonic_data)
-		local time = tick() * demonic_data.speed + demonic_data.time_offset
-		local pulse = math.sin(time) * 0.5 + 0.5 -- Normalize to 0-1
+		local t = time() * demonic_data.speed + demonic_data.time_offset
+		local pulse = math.sin(t) * 0.5 + 0.5 -- Normalize to 0-1
 		local value = demonic_data.min_value + (pulse * (demonic_data.max_value - demonic_data.min_value))
 
 		local color = Color3.fromHSV(0, 1, value)

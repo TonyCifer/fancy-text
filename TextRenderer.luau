@@ -26,6 +26,11 @@ function TextRenderer.new(container, config, text, trove)
 	self._effect_args = {}
 	self._global_char_index = 0
 
+	-- Flat list of pending effect updates, rebuilt each layout pass. Update()
+	-- iterates this instead of walking every character's effect list per frame,
+	-- so characters with no effects cost nothing at runtime.
+	self._update_list = {}
+
 	self:_Init()
 
 	return self
@@ -86,7 +91,7 @@ function TextRenderer:Render()
 			)
 		then
 			while self._container.AbsoluteSize.X == 0 and self._container.AbsoluteSize.Y == 0 do
-				task.wait()
+				self._container:GetPropertyChangedSignal("AbsoluteSize"):Wait()
 			end
 		end
 
@@ -116,6 +121,14 @@ function TextRenderer:_Layout()
 	self._render_trove:Clean()
 	self._effect_args = {}
 	self._global_char_index = 0
+	table.clear(self._update_list)
+
+	-- Effects receive the character's index in self._characters (not the rendered
+	-- index) - precompute it once per layout so _FlushLine doesn't have to search.
+	self._char_index = {}
+	for i, char_obj in self._characters do
+		self._char_index[char_obj] = i
+	end
 
 	if self._ui_scale then
 		self._ui_scale.Scale = ui_scale
@@ -125,6 +138,11 @@ function TextRenderer:_Layout()
 		-- inner grows → label grows), which pushed text off-center above 1080p.
 		self._render_container.Size = UDim2.fromScale(1 / ui_scale, 1 / ui_scale)
 	end
+
+	-- Effect Inits must not run until after the vertical offset below is applied,
+	-- or they capture pre-offset positions (e.g. shake's o_pos). _FlushLine only
+	-- queues them here; they run at the end of this layout pass.
+	self._pending_inits = {}
 
 	local layout_mgr =
 		TextLayoutManager.new(self._characters, self._container, self._config.CustomFont ~= nil, ui_scale)
@@ -145,20 +163,43 @@ function TextRenderer:_Layout()
 		vertical_offset = math.max(0, container_height - total_height)
 	end
 
-	-- Apply vertical offset and update OrigPos for effects
+	-- Apply vertical offset (before effect Inits run, so they see final positions)
 	if vertical_offset > 0 then
 		for _, char_obj in self._characters do
 			local instance = char_obj:GetInstance()
 			if instance then
-				local current_pos = instance.Position
-				instance.Position = current_pos + UDim2.fromOffset(0, vertical_offset)
-
-				-- Update OrigPos attribute so effects use the vertically-aligned position
-				if instance:GetAttribute("OrigPos") then
-					local orig_pos = instance:GetAttribute("OrigPos")
-					instance:SetAttribute("OrigPos", orig_pos + UDim2.fromOffset(0, vertical_offset))
-				end
+				instance.Position = instance.Position + UDim2.fromOffset(0, vertical_offset)
 			end
+		end
+	end
+
+	-- Now run the effect Inits queued by _FlushLine
+	for _, pending in self._pending_inits do
+		local effect_module = pending.effect_module
+		local char_inst = pending.char_inst
+
+		if effect_module.Init then
+			local effect_name = pending.effect_name
+			if not self._effect_args[effect_name] then
+				self._effect_args[effect_name] = {}
+			end
+
+			self._effect_args[effect_name][char_inst] = effect_module.Init(
+				char_inst,
+				pending.global_index,
+				self._render_trove,
+				pending.char_obj:GetEffectParams(effect_name)
+			)
+		end
+
+		if effect_module.Update then
+			table.insert(self._update_list, {
+				instance = char_inst,
+				char_obj = pending.char_obj,
+				effect_name = pending.effect_name,
+				update = effect_module.Update,
+				index = self._char_index[pending.char_obj],
+			})
 		end
 	end
 end
@@ -246,17 +287,13 @@ function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
 				continue
 			end
 
-			if effect_module.Init then
-				if not self._effect_args[effect_name] then
-					self._effect_args[effect_name] = {}
-				end
-
-				local char_inst = char_obj:GetInstance()
-				local params = char_obj:GetEffectParams(effect_name)
-
-				self._effect_args[effect_name][char_inst] =
-					effect_module.Init(char_inst, self._global_char_index, self._render_trove, params)
-			end
+			table.insert(self._pending_inits, {
+				effect_module = effect_module,
+				effect_name = effect_name,
+				char_obj = char_obj,
+				char_inst = char_obj:GetInstance(),
+				global_index = self._global_char_index,
+			})
 		end
 	end
 end
@@ -300,6 +337,16 @@ function TextRenderer:PlayEffect(effect_name: string, params: { string }?, auto_
 				max_end_time = math.max(max_end_time, data.delay + data.duration)
 			end
 		end
+
+		if effect_module.Update then
+			table.insert(self._update_list, {
+				instance = char_inst,
+				char_obj = char_obj,
+				effect_name = effect_name,
+				update = effect_module.Update,
+				index = i,
+			})
+		end
 	end
 
 	if auto_clean then
@@ -314,36 +361,32 @@ function TextRenderer:PlayEffect(effect_name: string, params: { string }?, auto_
 end
 
 function TextRenderer:Update(dt)
-	for i, char_obj in self._characters do
-		local instance = char_obj:GetInstance()
+	if #self._update_list == 0 then
+		return
+	end
 
-		-- if up to 10 parent's up are not visible, continue
-		if not instance or not Util.GuiObjectIsVisible(instance, 10) then
+	-- All characters share the container's ancestor chain, so check it once per
+	-- renderer instead of walking up to 10 parents per character per frame.
+	if not Util.GuiObjectIsVisible(self._container, 10) then
+		return
+	end
+
+	for _, entry in self._update_list do
+		local instance = entry.instance
+
+		if not instance or instance.Visible == false then
 			continue
 		end
 
-		for _, effect_name in char_obj:GetEffects() do
-			local effect_module = Util.GetEffectModule(effect_name)
-			if not effect_module then
-				continue
-			end
-
-			if not self._effect_args[effect_name] then
-				self._effect_args[effect_name] = {}
-			end
-
-			if effect_module.Update then
-				local params = char_obj:GetEffectParams(effect_name)
-				effect_module.Update(
-					instance,
-					i,
-					dt,
-					self._render_trove,
-					self._effect_args[effect_name][instance],
-					params
-				)
-			end
-		end
+		local args_bucket = self._effect_args[entry.effect_name]
+		entry.update(
+			instance,
+			entry.index,
+			dt,
+			self._render_trove,
+			args_bucket and args_bucket[instance],
+			entry.char_obj:GetEffectParams(entry.effect_name)
+		)
 	end
 end
 

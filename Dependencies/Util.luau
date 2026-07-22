@@ -8,6 +8,7 @@ local is_client = RunService:IsClient()
 
 local util = {
 	module_cache = {},
+	_warned_missing = {},
 }
 
 function util.HasProperty(instance, props: { string })
@@ -28,16 +29,25 @@ function util.HasProperty(instance, props: { string })
 end
 
 -- find parent thats visible up to a depth
-function util.GuiObjectIsVisible(ui: GuiObject, depth: number)
-	if not ui or not util.HasProperty(ui, { "Visible" }) or depth <= 0 then
-		return true
+function util.GuiObjectIsVisible(ui: Instance?, depth: number)
+	-- iterative + IsA instead of pcall-probing each ancestor: this runs in the
+	-- per-frame Update path, and pcall per parent level was the hottest cost there.
+	-- Same semantics as before: anything without a Visible property ends the climb
+	-- as "visible" (e.g. ScreenGui), matching the old HasProperty behavior.
+	while ui and depth > 0 do
+		if not ui:IsA("GuiObject") then
+			return true
+		end
+
+		if ui.Visible == false then
+			return false
+		end
+
+		ui = ui.Parent
+		depth -= 1
 	end
 
-	if ui.Visible == false then
-		return false
-	end
-
-	return util.GuiObjectIsVisible(ui.Parent, depth - 1)
+	return true
 end
 
 function util.ValidateConfig(config)
@@ -107,7 +117,11 @@ function util.GetEffectModule(effect_name: string)
 
 	local m = Config.EffectsFolder:FindFirstChild(effect_name)
 	if not m then
-		warn(`[FancyText]: Can't find effect module: {effect_name}`)
+		-- warn once per unknown name, not once per tagged character
+		if not util._warned_missing[effect_name] then
+			util._warned_missing[effect_name] = true
+			warn(`[FancyText]: Can't find effect module: {effect_name}`)
+		end
 		return
 	end
 
