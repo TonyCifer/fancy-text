@@ -117,7 +117,7 @@ FancyText supports custom TTF fonts through the TTFToRoblox tool, which converts
 ### Step 1: Convert Your Font
 
 1. Place your `.ttf` font file in the same directory as `TTFToRoblox.exe`
-2. Run the executable and select your font file, or drag-and-drop your TTF file onto `TTFToRoblox.exe`
+2. Drag-and-drop your TTF file onto `TTFToRoblox.exe`
 3. The tool will generate two files: `yourfont.png` (a 2048x2048 atlas texture, rasterized via BMFont at 64px) and `yourfont.lua` (character metadata - positions, sizes, offsets, advance - for ASCII 32-126)
 
 ### Step 2: Upload to Roblox
