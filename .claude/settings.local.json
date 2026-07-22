@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"/mnt/c/Users/anton/Documents/Roblox/Projects/FancyText/FromLabel.luau\" \"/mnt/c/Users/anton/Documents/Roblox/Projects/UITesting/Script/FancyText/FromLabel.luau\")",
+      "Read(//mnt/c/Users/anton/Documents/Roblox/Projects/UITesting/Script/FancyText/**)",
+      "Bash(echo \"exit: $?\")"
+    ]
+  }
+}
