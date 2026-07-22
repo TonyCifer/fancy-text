@@ -46,11 +46,11 @@ end)
 
 **Color:** `rainbow`, `col R G B`, `demonic`, `flicker`, `gradient`, `gradientWave`
 
-**Entrances & exits:** `fi`, `typewrite`, `fall`, `fade`, `clickpop`
+**Entrances & exits:** `fi`, `typewrite`, `fall`, `fade`, `clickpop`, `smash`
 
 **Other:** `shadow`, `b`
 
-Effects stack freely - `<shadow><wave><typewrite><fade 1 0.5>` applies all four to the same text. `fall`/`fade`/`clickpop` also work on demand via [`:PlayEffect(...)`](#triggering-effects-on-demand). Each effect's exact parameters are in its source file in `Effects/`; see [Creating Custom Effects](#creating-custom-effects) for the format if you want to add your own.
+Effects stack freely - `<shadow><wave><typewrite><fade 1 0.5>` applies all four to the same text. `fall`/`fade`/`clickpop`/`smash` also work on demand via [`:PlayEffect(...)`](#triggering-effects-on-demand) (note `smash` doesn't report `delay`/`duration`, so it can't be used with `autoClean = true` - see the caveat in that section). Each effect's exact parameters are in its source file in `Effects/`; see [Creating Custom Effects](#creating-custom-effects) for the format if you want to add your own.
 
 ## Icons
 
