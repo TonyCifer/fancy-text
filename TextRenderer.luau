@@ -17,18 +17,14 @@ function TextRenderer.new(container, config, text, trove)
 	self._text = text
 	self._trove = trove
 
-	-- Everything created by a layout pass (character instances, effect Init state)
-	-- lives in its own sub-trove so a resize can Clean() and rebuild it without
-	-- touching the structural stuff (UIScale, resize connections) in self._trove.
+	-- own sub-trove per layout pass, so a resize can Clean() without touching self._trove
 	self._render_trove = trove:Extend()
 
 	self._characters = {}
 	self._effect_args = {}
 	self._global_char_index = 0
 
-	-- Flat list of pending effect updates, rebuilt each layout pass. Update()
-	-- iterates this instead of walking every character's effect list per frame,
-	-- so characters with no effects cost nothing at runtime.
+	-- flat list rebuilt per layout; Update() only walks this, so effect-less chars cost nothing
 	self._update_list = {}
 
 	self:_Init()
@@ -70,9 +66,7 @@ function TextRenderer:_Init()
 
 	parser:Parse()
 
-	-- Only resolve font data/sizing for characters that survived parsing (i.e. are
-	-- actually going to be rendered) - see TextCharacter:Resolve for why this can't
-	-- happen eagerly in TextCharacter.new.
+	-- only chars that survived parsing need resolving; see TextCharacter:Resolve
 	for _, char_obj in self._characters do
 		if char_obj.Resolve then
 			char_obj:Resolve()
@@ -100,18 +94,12 @@ function TextRenderer:Render()
 	end))
 end
 
--- Lays out (or re-lays-out) all characters: recomputes the UIScale factor, re-wraps
--- lines against the container's current size, and repositions/recreates character
--- instances. Safe to call multiple times - each call cleans up the previous pass's
--- instances and effect state via self._render_trove before rebuilding.
+-- re-wraps and repositions/recreates all characters; safe to call repeatedly
 function TextRenderer:_Layout()
 	local ui_scale = self._config.Scale and Util.GetUIScale() or 1
 	local container_size = self._container.AbsoluteSize
 
-	-- Recreating instances below can itself change the container's AbsoluteSize
-	-- (e.g. if it has AutomaticSize enabled), which would re-fire the resize
-	-- listener that called us. Skip the reflow if nothing actually changed since
-	-- the last layout so that settles into a no-op instead of looping forever.
+	-- skip if nothing changed, avoids AutomaticSize feedback loops from recreating instances
 	if self._last_layout_size == container_size and self._last_layout_scale == ui_scale then
 		return
 	end
@@ -123,8 +111,7 @@ function TextRenderer:_Layout()
 	self._global_char_index = 0
 	table.clear(self._update_list)
 
-	-- Effects receive the character's index in self._characters (not the rendered
-	-- index) - precompute it once per layout so _FlushLine doesn't have to search.
+	-- precompute character index once per layout instead of searching in _FlushLine
 	self._char_index = {}
 	for i, char_obj in self._characters do
 		self._char_index[char_obj] = i
@@ -132,16 +119,11 @@ function TextRenderer:_Layout()
 
 	if self._ui_scale then
 		self._ui_scale.Scale = ui_scale
-		-- Compensate the render container so its rendered size equals the
-		-- label exactly: a fromScale(1,1) frame under a UIScale > 1 inflates
-		-- AutomaticSize ancestors in a runaway feedback loop (label grows →
-		-- inner grows → label grows), which pushed text off-center above 1080p.
+		-- compensates UIScale>1 inflating AutomaticSize ancestors (pushed text off-center >1080p)
 		self._render_container.Size = UDim2.fromScale(1 / ui_scale, 1 / ui_scale)
 	end
 
-	-- Effect Inits must not run until after the vertical offset below is applied,
-	-- or they capture pre-offset positions (e.g. shake's o_pos). _FlushLine only
-	-- queues them here; they run at the end of this layout pass.
+	-- queued here, run after vertical offset below so Inits see final positions
 	self._pending_inits = {}
 
 	local layout_mgr =
@@ -204,13 +186,8 @@ function TextRenderer:_Layout()
 	end
 end
 
--- Re-runs _Layout() whenever the viewport changes (window resize, device rotation,
--- split-screen, etc.), debounced so a burst of resize events only triggers one
--- reflow after things settle. Deliberately does NOT listen to the container's own
--- AbsoluteSize - recreating instances can itself change a container's AbsoluteSize
--- (e.g. if it has AutomaticSize enabled), which turned into a self-triggering loop.
--- ViewportSize only changes for genuine external reasons (resize/rotate/etc.), so
--- it can't be fed back into by our own writes.
+-- debounced re-layout on viewport change; watches ViewportSize, not container
+-- AbsoluteSize, to avoid a self-triggering loop from recreating instances
 function TextRenderer:_ListenForResize()
 	local reflow_pending = false
 	local alive = true
@@ -233,8 +210,7 @@ function TextRenderer:_ListenForResize()
 		end)
 	end
 
-	-- workspace.CurrentCamera can be swapped out (e.g. by camera scripts), so
-	-- re-hook ViewportSize whenever that happens rather than assuming it's stable.
+	-- camera can be swapped out, so re-hook ViewportSize each time
 	local camera_conn = nil
 	local function hook_camera()
 		if camera_conn then
@@ -298,14 +274,8 @@ function TextRenderer:_FlushLine(chars_to_render, line_width, line_height)
 	end
 end
 
--- Manually triggers an effect on all currently rendered characters right now, instead of
--- waiting on a tag-driven delay - e.g. call this from a button's click handler to start an
--- exit transition on demand. Runs the effect's Init immediately and registers it on each
--- character so the normal Update loop above carries the tween forward from here.
---
--- If auto_clean is true and the effect's Init returns numeric `delay`/`duration` fields
--- (as fall/fade already do), the whole trove (the same one MakeText/FromLabel returned)
--- is automatically cleaned once every character's transition should be finished.
+-- triggers an effect on demand (e.g. a click handler) instead of waiting on a tag delay.
+-- auto_clean cleans the whole trove once delay+duration elapses, if the effect reports them.
 function TextRenderer:PlayEffect(effect_name: string, params: { string }?, auto_clean: boolean?)
 	local effect_module = Util.GetEffectModule(effect_name)
 	if not effect_module then
@@ -365,8 +335,7 @@ function TextRenderer:Update(dt)
 		return
 	end
 
-	-- All characters share the container's ancestor chain, so check it once per
-	-- renderer instead of walking up to 10 parents per character per frame.
+	-- check ancestor visibility once per renderer, not per character per frame
 	if not Util.GuiObjectIsVisible(self._container, 10) then
 		return
 	end

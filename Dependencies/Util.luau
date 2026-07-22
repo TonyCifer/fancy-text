@@ -30,10 +30,7 @@ end
 
 -- find parent thats visible up to a depth
 function util.GuiObjectIsVisible(ui: Instance?, depth: number)
-	-- iterative + IsA instead of pcall-probing each ancestor: this runs in the
-	-- per-frame Update path, and pcall per parent level was the hottest cost there.
-	-- Same semantics as before: anything without a Visible property ends the climb
-	-- as "visible" (e.g. ScreenGui), matching the old HasProperty behavior.
+	-- iterative + IsA instead of pcall-probing each ancestor, cheaper in this hot path
 	while ui and depth > 0 do
 		if not ui:IsA("GuiObject") then
 			return true

@@ -45,10 +45,20 @@ return {
 
 		char_inst.ZIndex += 1
 
-		-- Keep shadow synced with character visibility even before Update runs
+		-- Update() skips invisible characters entirely, so sync these reactively too
 		trove:Add(char_inst:GetPropertyChangedSignal("Visible"):Connect(function()
 			shadow.Visible = char_inst.Visible
 		end))
+
+		if char_inst:IsA("TextLabel") then
+			trove:Add(char_inst:GetPropertyChangedSignal("TextTransparency"):Connect(function()
+				shadow.TextTransparency = char_inst.TextTransparency
+			end))
+		elseif char_inst:IsA("ImageLabel") then
+			trove:Add(char_inst:GetPropertyChangedSignal("ImageTransparency"):Connect(function()
+				shadow.ImageTransparency = char_inst.ImageTransparency
+			end))
+		end
 
 		return {
 			shadow = shadow,

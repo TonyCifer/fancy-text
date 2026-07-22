@@ -182,9 +182,7 @@ return {
 
 		local wave: number = gradient_data.spring.Position -- smoothed, roughly -1..1
 
-		-- Skip the property writes (and the per-frame NumberSequence allocation)
-		-- when the spring has effectively not moved - visually identical, and most
-		-- frames land here once the spring settles into its steady oscillation.
+		-- skip the write when the spring hasn't meaningfully moved (most frames, once settled)
 		local last_wave = gradient_data.last_wave
 		if last_wave and math.abs(wave - last_wave) < 1e-3 then
 			return

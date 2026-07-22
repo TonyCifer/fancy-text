@@ -102,9 +102,8 @@ function FancyText.MakeText(container: GuiObject, text: string, config: Config?)
 		end
 	end)
 
-	-- Attached directly to the trove instance (rather than returned as a 2nd value) so the
-	-- extremely common `trove:Add(FancyText.MakeText(...))` pattern keeps working unchanged -
-	-- a 2nd return value would silently splat into Add's `cleanupMethod` argument instead.
+	-- attached to the trove instance so trove:Add(FancyText.MakeText(...)) still works;
+	-- a 2nd return value would splat into Add's cleanupMethod argument instead
 	function trove:PlayEffect(effect_name: string, params: { string }?, auto_clean: boolean?)
 		return text_renderer:PlayEffect(effect_name, params, auto_clean)
 	end

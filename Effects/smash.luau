@@ -1,7 +1,7 @@
 -- <smash speed rise>
 -- Typewriter that hammers: characters appear one by one, each one slams down
 -- from high above at 1.7x size, hits with a hard squash + random tilt, then
--- straightens out. Only the glyphs animate - the container never moves.
+-- straightens out. Only the glyphs animate; the container never moves.
 -- speed: per-character delay in seconds (default 0.06)
 -- rise: how many pixels above its final position each character starts (default 90)
 

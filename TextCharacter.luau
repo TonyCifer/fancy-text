@@ -2,12 +2,10 @@ local textservice = game:GetService("TextService")
 
 local Config = require(script.Parent.Config)
 
--- Font modules never change at runtime; cache the resolved require per font name
--- so we don't do a FindFirstChild + require round-trip for every single glyph.
+-- cache resolved font modules, avoids FindFirstChild+require per glyph
 local font_data_cache = {}
 
--- GetTextSize is pure for a given (char, size, font), and the same glyphs get
--- measured over and over (every renderer, every character). Shared cache.
+-- GetTextSize is pure per (char, size, font); shared cache avoids re-measuring
 local text_size_cache = {}
 
 local function get_custom_char_data(char: string, font_size: number, custom_font: string)
@@ -33,8 +31,7 @@ local function get_custom_char_data(char: string, font_size: number, custom_font
 	end
 
 	if not char_data then
-		-- Unknown glyph (e.g. multibyte unicode): render via the system font
-		-- fallback instead of killing the whole render.
+		-- unknown glyph: fall back to system font instead of erroring
 		warn(`[FancyText]: No CharacterData for {char_code} in {custom_font}; falling back to system font.`)
 		return nil
 	end
@@ -47,11 +44,7 @@ local function get_custom_char_data(char: string, font_size: number, custom_font
 		error(`[FancyText]: FontData for {custom_font} doesn't have an Atlas.`)
 	end
 
-	-- font_data.YOffset is an optional, manually-tuned per-font correction (defaults to 0, i.e.
-	-- unchanged behavior). Add `YOffset = <number>` to a font's Fonts/*.luau module to nudge
-	-- that font's vertical alignment - positive shifts glyphs down, negative shifts them up -
-	-- instead of FancyText trying to auto-derive "correct" metrics from the atlas's per-glyph
-	-- data (which behaves inconsistently depending on which characters a given string uses).
+	-- font_data.YOffset: optional manual per-font vertical nudge, defaults to 0
 	return {
 		Atlas = font_data.Atlas,
 		UnscaledWidth = char_data.width,
@@ -85,13 +78,7 @@ function TextCharacter.new(char: string, config, container: GuiObject)
 	return self
 end
 
--- Resolves size/custom font data for this character. Deferred until after tag/effect
--- parsing (EffectParser:Parse) rather than done eagerly in .new(), because .new() is
--- called for every raw character in the source text, including characters that only
--- ever exist inside <tag> syntax (e.g. '<', '>', tag names/params). Those characters
--- are discarded by the parser and never rendered, so they must not require font data
--- to exist for them - resolving lazily here means only characters that survive
--- parsing (i.e. are actually going to be rendered) need valid font data.
+-- deferred until after tag parsing so tag-only chars (e.g. '<', '>') never need font data
 function TextCharacter:Resolve()
 	if self._config.CustomFont then
 		self._custom_font_data = get_custom_char_data(self._char, self._font_size, self._config.CustomFont)
@@ -110,8 +97,7 @@ function TextCharacter:Resolve()
 		-- GetTextSize only accepts Enum.Font, not FontFace
 		local font = self._config.Font or Enum.Font.SourceSans
 
-		-- Single glyphs never wrap, so the bounds argument doesn't affect the result;
-		-- a fixed large bound makes the measurement cacheable across all renderers.
+		-- single glyphs never wrap, so a big fixed bound is safe to cache across renderers
 		local cache_key = self._char .. "\1" .. font.Name .. "\1" .. self._font_size
 		local cached = text_size_cache[cache_key]
 		if not cached then
@@ -147,9 +133,7 @@ function TextCharacter:CreateInstance(line_start_x, x_pos, line_height, trove, r
 		self._instance.Text = self._char
 		self._instance.TextSize = self._font_size
 		self._instance.TextColor3 = text_color
-		-- Each label holds exactly one plain character; RichText would run the
-		-- engine's markup parser per label for nothing (tags are handled by
-		-- EffectParser before instances exist).
+		-- one plain char per label, no markup to parse (EffectParser already handled tags)
 		self._instance.RichText = false
 		self._instance.ZIndex = self._config.ZIndex
 		self._instance.Size = UDim2.fromOffset(size.X, size.Y)

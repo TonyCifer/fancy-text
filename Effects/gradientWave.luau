@@ -86,7 +86,6 @@ return {
 
 		return {
 			gradient = gradient,
-			base_transparency = base_transparency,
 			spring = spring,
 		}
 	end,
@@ -100,7 +99,11 @@ return {
 
 		gradient_data.gradient.Offset = Vector2.new(0, wave * WAVE_AMPLITUDE)
 
-		local transparency = math.clamp(gradient_data.base_transparency + wave * TRANSPARENCY_AMPLITUDE, 0, 1)
+		-- read live; a frozen Init snapshot would desync since effect Init order isn't guaranteed
+		local base_transparency = if char_inst:IsA("ImageLabel")
+			then char_inst.ImageTransparency
+			else char_inst.TextTransparency
+		local transparency = math.clamp(base_transparency + wave * TRANSPARENCY_AMPLITUDE, 0, 1)
 		gradient_data.gradient.Transparency = NumberSequence.new(transparency)
 	end,
 }
