@@ -6,10 +6,10 @@ A powerful and flexible text rendering module for Roblox that supports custom fo
 
 - [x] **Custom Fonts** - Import TTF fonts using TTFToRoblox
 - [x] **Built-in Fonts** - Support for Roblox Enum.Font and FontFace
-- [x] **Text Effects** - 11+ built-in effects (shake, wave, rainbow, typewriter, etc.)
+- [x] **Text Effects** - 15+ built-in effects (shake, wave, rainbow, typewriter, animated gradients, etc.), all freely stackable on one string
 - [x] **Inline Icons** - Embed ImageLabels within text
 - [x] **Text Alignment** - Left, Right, and Center alignment
-- [x] **UI Scaling** - Automatic scaling relative to 1920x1080
+- [x] **UI Scaling** - `Config.Scale` (defaults to `true`) automatically scales rendered text relative to a 1920x1080 reference resolution, similar to Roblox's native `TextScaled` option on a `TextLabel`. Set `Scale = false` if you're already handling scaling yourself.
 - [x] **Word Wrapping** - Intelligent word wrapping with custom fonts
 - [x] **BBCode Tags** - Toggle effects on/off with `<effect>` tags
 - [x] **Extensible** - Easy to create custom effects
@@ -27,7 +27,7 @@ A powerful and flexible text rendering module for Roblox that supports custom fo
 ```lua
 local ft = require(path.to.FancyText)
 
-local text = "<shadow 5 5><wave><type><rainbow>This is FancyText"
+local text = "<shadow 5 5><wave><typewrite><rainbow>This is FancyText"
 local cleanup_trove = ft.MakeText(container, text, {
     FontFace = Font.new("rbxassetid://fonts/families/Inconsolata.json"),
     FontSize = 80,
@@ -42,14 +42,15 @@ end)
 
 ## Built-in Effects
 
-- `rainbow` - Animated rainbow color cycling
-- `shake` - Random character shaking
-- `wave` - Sine wave motion
-- `floatwave` - Floating wave motion
-- `jitter` - Random jittering
-- `col R G B` - Set text color (RGB 0-255) e.g. <col 255 255 255>
-- `typewrite` - Typewriter reveal effect
-- More effects in the Effects folder
+**Motion:** `wave`, `floatwave`, `shake`, `jitter`
+
+**Color:** `rainbow`, `col R G B`, `demonic`, `flicker`, `gradient`, `gradientWave`
+
+**Entrances & exits:** `fi`, `typewrite`, `fall`, `fade`, `clickpop`
+
+**Other:** `shadow`, `b`
+
+Effects stack freely - `<shadow><wave><typewrite><fade 1 0.5>` applies all four to the same text. `fall`/`fade`/`clickpop` also work on demand via [`:PlayEffect(...)`](#triggering-effects-on-demand). Each effect's exact parameters are in its source file in `Effects/`; see [Creating Custom Effects](#creating-custom-effects) for the format if you want to add your own.
 
 ## Icons
 
@@ -68,7 +69,7 @@ local trove = FancyText.MakeText(
 )
 ```
 
-Icons are always rendered as a square sized to `FontSize`, positioned flush with the top of the line - unlike text characters, they don't have per-glyph baseline data to align themselves with. If an icon looks vertically misaligned next to text (most noticeable with `CustomFont`, since glyphs have their own per-character baseline offset from the font atlas), pass an optional second tag argument to manually nudge it - positive moves the icon down, negative moves it up:
+Icons render as a `FontSize`-square, flush with the top of the line, so they can look misaligned next to `CustomFont` text (which has its own per-glyph baseline offset). Pass an optional second tag argument to nudge it - positive moves it down, negative up:
 
 ```lua
 "Collect <icon Coin 4> coins!" -- shifts the Coin icon down by 4px to line up with the digits
@@ -107,11 +108,7 @@ closeButton.MouseButton1Click:Once(function()
 end)
 ```
 
-`:PlayEffect(effectName, params?, autoClean?)` runs the effect's `Init` immediately on every currently-rendered character (instead of waiting on a tag), then lets the normal per-frame update loop carry the tween forward from there. `params` follows the same format as tag arguments (e.g. `{"0", "1"}` for `<fade 0 1>`'s delay/duration).
-
-If `autoClean` is `true` and the effect's `Init` reports numeric `delay`/`duration` fields (as `fall`/`fade` already do), the whole trove is automatically cleaned once every character's transition should be finished - no manual `task.delay`/cleanup bookkeeping needed. Effects that don't report `delay`/`duration` (e.g. `rainbow`, `shake`) still work with `:PlayEffect()`, they just can't be used with `autoClean = true` (a warning is printed if you try).
-
-This works identically on the trove returned by `FromLabel`.
+`:PlayEffect(effectName, params?, autoClean?)` (works the same on troves from both `MakeText` and `FromLabel`) runs the effect's `Init` immediately on every character instead of waiting on a tag, using the same `params` format as tag arguments (e.g. `{"0", "1"}` for `<fade 0 1>`). If `autoClean` is `true` and the effect reports numeric `delay`/`duration` from `Init` (as `fall`/`fade` do), the whole trove is automatically cleaned once every character's transition finishes - no manual `task.delay` bookkeeping needed. Effects without `delay`/`duration` (e.g. `rainbow`) still work with `:PlayEffect()`, just not `autoClean`.
 
 ## Importing Custom Fonts with TTFToRoblox
 
@@ -121,17 +118,9 @@ FancyText supports custom TTF fonts through the TTFToRoblox tool, which converts
 
 1. Place your `.ttf` font file in the same directory as `TTFToRoblox.exe`
 2. Run the executable and select your font file, or drag-and-drop your TTF file onto `TTFToRoblox.exe`
-3. The tool will generate two files:
-   - `yourfont.png` - Atlas texture containing all characters
-   - `yourfont.lua` - Character metadata (positions, sizes, offsets)
+3. The tool will generate two files: `yourfont.png` (a 2048x2048 atlas texture, rasterized via BMFont at 64px) and `yourfont.lua` (character metadata - positions, sizes, offsets, advance - for ASCII 32-126)
 
-**How it works:**
-
-- TTFToRoblox uses BMFont to rasterize the TTF font at 64px size
-- Characters 32-126 (printable ASCII) are rendered to a 2048x2048 PNG atlas
-- A Lua module is generated with character metrics (x, y, width, height, offsets, advance)
-
-### Step 3: Upload to Roblox
+### Step 2: Upload to Roblox
 
 1. Upload `yourfont.png` to Roblox as an Image asset
 2. Copy the asset ID (e.g., `rbxassetid://1234567890`)
@@ -147,7 +136,7 @@ return {
 }
 ```
 
-### Step 4: Add to FancyText
+### Step 3: Add to FancyText
 
 1. Place `yourfont.lua` (or rename it) into the `FancyText/Fonts/` folder
 2. Use it in your config:
@@ -161,9 +150,13 @@ local config = {
 local trove = FancyText.MakeText(container, "Custom Font Text!", config)
 ```
 
+### Character Fallbacks
+
+Custom font atlases only cover ASCII 32-126. Smart typographic punctuation (curly quotes, en/em dashes, ellipsis) is auto-converted to its plain ASCII equivalent, so pasted text from Docs/Word "just works." Anything else missing from the atlas doesn't crash the render - it warns and falls back to the system font instead.
+
 ### Fixing Vertical Alignment
 
-If `VerticalAlign = "Center"` (or `"Bottom"`) doesn't look quite right for a custom font - the atlas's per-character offsets don't carry enough information for FancyText to always get this perfect automatically - add an optional `YOffset` field to that font's `.lua`/`.luau` module and nudge it until it looks right in Studio. Positive shifts the font's text down, negative shifts it up. It defaults to `0` (i.e. no change) if omitted, so this is safe to add to any existing font module:
+If `VerticalAlign = "Center"`/`"Bottom"` looks slightly off for a custom font, add an optional `YOffset` field to that font's module and nudge it until it looks right in Studio (positive = down, negative = up). Defaults to `0`, so it's safe to add to any existing font:
 
 ```lua
 return {
