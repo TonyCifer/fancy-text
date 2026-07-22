@@ -35,10 +35,10 @@ local ACCENT_WIDTH = 0.12 -- width (0-1) of the optional accent seam at the boun
 
 -- Appends a keypoint, skipping it if its time doesn't strictly increase (keeps
 -- sequences valid when the sharp edge collides with 0/1 at extreme percent values).
-local function add_keypoint(keypoints, ctor, time: number, value)
-	time = math.clamp(time, 0, 1)
-	if #keypoints == 0 or time > keypoints[#keypoints].Time then
-		table.insert(keypoints, ctor(time, value))
+local function add_keypoint(keypoints, ctor, t: number, value)
+	t = math.clamp(t, 0, 1)
+	if #keypoints == 0 or t > keypoints[#keypoints].Time then
+		table.insert(keypoints, ctor(t, value))
 	end
 end
 
@@ -177,10 +177,19 @@ return {
 		local phase = (char_inst.Position.X.Offset / WAVE_LENGTH) * (2 * math.pi)
 
 		-- drive the spring with a sine wave so the tilt eases around smoothly instead of ticking
-		local sine = math.sin((tick() * WAVE_FREQ) + phase)
+		local sine = math.sin((time() * WAVE_FREQ) + phase)
 		gradient_data.spring.Target = sine
 
-		local wave = gradient_data.spring.Position -- smoothed, roughly -1..1
+		local wave: number = gradient_data.spring.Position -- smoothed, roughly -1..1
+
+		-- Skip the property writes (and the per-frame NumberSequence allocation)
+		-- when the spring has effectively not moved - visually identical, and most
+		-- frames land here once the spring settles into its steady oscillation.
+		local last_wave = gradient_data.last_wave
+		if last_wave and math.abs(wave - last_wave) < 1e-3 then
+			return
+		end
+		gradient_data.last_wave = wave
 
 		gradient_data.gradient.Rotation = GRADIENT_ROTATION_BASE + math.clamp(wave, -1, 1) * ROTATION_AMPLITUDE
 

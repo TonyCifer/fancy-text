@@ -93,7 +93,7 @@ return {
 
 	Update = function(char_inst: ImageLabel | TextLabel, index, dt, trove, gradient_data)
 		-- drive the spring with a sine wave so the shimmer eases around smoothly instead of ticking
-		local sine = math.sin((tick() * WAVE_FREQ) + (index * WAVE_SPACING))
+		local sine = math.sin((time() * WAVE_FREQ) + (index * WAVE_SPACING))
 		gradient_data.spring.Target = sine
 
 		local wave = gradient_data.spring.Position -- smoothed, roughly -1..1

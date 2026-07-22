@@ -117,7 +117,7 @@ function FancyText.FromLabel(text_label: TextLabel, configs: Config?, prefix: st
 end
 
 function FancyText.GetTextLengthWithoutTags(msg: string): number
-	return string.len(string.gsub(msg, "<.->", ""))
+	return #(string.gsub(msg, "<.->", ""))
 end
 
 function FancyText.GetTextWithoutTags(msg: string): string

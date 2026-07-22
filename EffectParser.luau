@@ -6,7 +6,8 @@ function EffectParser.new(characters: { string })
 		_characters = characters,
 		_active_effects = {},
 		_building_effect = false,
-		_current_effect = "",
+		-- collected as a table + concat instead of repeated string ..= (quadratic)
+		_current_effect = {},
 		_tag_callbacks = {},
 	}, EffectParser)
 end
@@ -22,7 +23,7 @@ function EffectParser:Parse()
 		local char = char_obj:GetChar()
 		if char == "<" then
 			self._building_effect = true
-			self._current_effect = ""
+			table.clear(self._current_effect)
 			continue
 		elseif char == ">" then
 			if not self._building_effect then
@@ -33,7 +34,7 @@ function EffectParser:Parse()
 			self._building_effect = false
 
 			-- parse effect name and parameters
-			local parts = string.split(self._current_effect, " ")
+			local parts = string.split(table.concat(self._current_effect), " ")
 			local effect_name = parts[1]
 			local params = {}
 			for j = 2, #parts do
@@ -65,10 +66,10 @@ function EffectParser:Parse()
 				end
 			end
 
-			self._current_effect = ""
+			table.clear(self._current_effect)
 			continue
 		elseif self._building_effect then
-			self._current_effect ..= char
+			table.insert(self._current_effect, char)
 			continue
 		end
 
