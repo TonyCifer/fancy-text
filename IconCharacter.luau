@@ -18,9 +18,14 @@ function IconCharacter.new(icon_name: string, config, container: GuiObject, y_of
 end
 
 function IconCharacter:CreateInstance(line_start_x, x_pos, line_height, trove, render_container)
+	if not Config.IconsFolder then
+		warn(`[FancyText/IconCharacter]: Can't render <icon {self._icon_name}> - Config.IconsFolder isn't set.`)
+		return
+	end
+
 	local icon = Config.IconsFolder:FindFirstChild(self._icon_name)
 	if not icon then
-		warn(`[FancyText/IconCharacter]: Icon '{self._icon_name}' not found in ReplicatedStorage.Assets.UI.Icons`)
+		warn(`[FancyText/IconCharacter]: Icon '{self._icon_name}' not found in {Config.IconsFolder:GetFullName()}`)
 		return
 	end
 

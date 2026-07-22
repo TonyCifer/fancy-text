@@ -5,7 +5,7 @@ return {
 		char_inst:SetAttribute("OrigPos", char_inst.Position)
 	end,
 
-	Update = function(char_inst: TextLabel, dt)
+	Update = function(char_inst: TextLabel, index, dt)
 		local orig_pos = char_inst:GetAttribute("OrigPos")
 
 		local x_offset = (math.random() * 2 - 1) * SHAKE_INTENSITY

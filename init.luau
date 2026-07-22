@@ -23,6 +23,18 @@ for i = 1, FRAME_THROTTLE_AMT do
 	table.insert(FancyText.RendererGroups, {})
 end
 
+-- Custom font atlases only carry single-byte glyphs; swap the common
+-- typographic unicode for ASCII equivalents before rendering.
+local CUSTOM_FONT_SUBSTITUTES = {
+	["\u{2018}"] = "'", -- ‘
+	["\u{2019}"] = "'", -- ’
+	["\u{201C}"] = '"', -- “
+	["\u{201D}"] = '"', -- ”
+	["\u{2013}"] = "-", -- –
+	["\u{2014}"] = "-", -- —
+	["\u{2026}"] = "...", -- …
+}
+
 function FancyText.MakeText(container: GuiObject, text: string, config: Config?): Trove.Trove
 	assert(container and container:IsA("GuiObject"), "[FancyText]: First argument must be a GuiObject.")
 	assert(text and type(text) == "string" or text == "", "[FancyText]: Second argument must be a non-empty string.")
@@ -35,6 +47,12 @@ function FancyText.MakeText(container: GuiObject, text: string, config: Config?)
 	if not succ then
 		warn(`[FancyText]: Config invalid: {valid_config}`)
 		return
+	end
+
+	if valid_config.CustomFont then
+		for unicode, ascii in CUSTOM_FONT_SUBSTITUTES do
+			text = text:gsub(unicode, ascii)
+		end
 	end
 
 	local trove = Trove.new()

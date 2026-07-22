@@ -119,6 +119,11 @@ function TextRenderer:_Layout()
 
 	if self._ui_scale then
 		self._ui_scale.Scale = ui_scale
+		-- Compensate the render container so its rendered size equals the
+		-- label exactly: a fromScale(1,1) frame under a UIScale > 1 inflates
+		-- AutomaticSize ancestors in a runaway feedback loop (label grows →
+		-- inner grows → label grows), which pushed text off-center above 1080p.
+		self._render_container.Size = UDim2.fromScale(1 / ui_scale, 1 / ui_scale)
 	end
 
 	local layout_mgr =

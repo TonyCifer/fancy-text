@@ -8,7 +8,7 @@ return {
 		char_inst:SetAttribute("CharIndex", index)
 	end,
 
-	Update = function(char_inst: TextLabel, dt)
+	Update = function(char_inst: TextLabel, index, dt)
 		local orig_pos = char_inst:GetAttribute("OrigPos")
 		local char_index = char_inst:GetAttribute("CharIndex")
 

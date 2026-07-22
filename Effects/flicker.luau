@@ -6,7 +6,7 @@ return {
 		char_inst:SetAttribute("FlickerSeed", math.random() * 1000)
 	end,
 
-	Update = function(char_inst: TextLabel, dt)
+	Update = function(char_inst: TextLabel, index, dt)
 		local orig_pos = char_inst:GetAttribute("OrigPos")
 		local base_brightness = char_inst:GetAttribute("BaseBrightness")
 		local flicker_seed = char_inst:GetAttribute("FlickerSeed")

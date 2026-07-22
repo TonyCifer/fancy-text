@@ -20,7 +20,10 @@ local function get_custom_char_data(char: string, font_size: number, custom_font
 	end
 
 	if not char_data then
-		error(`[FancyText]: Tried getting CharacterData for {char_code}; doesn't exist.`)
+		-- Unknown glyph (e.g. multibyte unicode): render via the system font
+		-- fallback instead of killing the whole render.
+		warn(`[FancyText]: No CharacterData for {char_code} in {custom_font}; falling back to system font.`)
+		return nil
 	end
 
 	if not o_size then

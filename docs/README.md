@@ -19,7 +19,10 @@ A powerful and flexible text rendering module for Roblox that supports custom fo
 
 ## Demo
 
-![App Demo](./demo.gif)
+![App Demo](./demo1.gif)
+![App Demo](./demo2.png)
+![App Demo](./demo3.gif)
+![App Demo](./demo4.gif)
 
 ```lua
 local ft = require(path.to.FancyText)
