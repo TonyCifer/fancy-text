@@ -1,5 +1,5 @@
 # FancyText
-
+https://devforum.roblox.com/t/fancytext-a-flexible-text-rendering-module-with-custom-fonts-effects-and-inline-icons/4750182
 A powerful and flexible text rendering module for Roblox that supports custom fonts, text effects, inline icons, and rich formatting through tags. Perfect for creating dynamic UI text with animations, colors, and special effects.
 
 ## Features
